@@ -1,0 +1,116 @@
+/* 
+Write a SQL query against your new structured relational data model that answers one of the following bullet points below of your choosing. Commit it to the git repository along with the rest of the exercise.
+
+I have written queries that answer all 6 predetermined questions from a business stakeholder using postgresql.
+*/
+-- What are the top 5 brands by receipts scanned for most recent month?
+SELECT *
+FROM (
+	SELECT b.name AS current_month_brand
+		,COUNT(DISTINCT r.receipt_id) AS receipt_count
+		,rank() OVER (
+			ORDER BY COUNT(DISTINCT r.receipt_id) DESC
+			) AS ranking
+	FROM receiptitems ri
+	INNER JOIN receipts r ON r.receipt_id = ri.receipt_id
+	INNER JOIN brands b ON b.brandCode = ri.brandcode
+	WHERE r.dateScanned BETWEEN date_trunc('month', current_timestamp - interval '1 month')
+			AND date_trunc('month', current_timestamp)
+	GROUP BY b.brand_id
+		,b.name
+	) AS current_rankings
+WHERE RANKING <= 5;
+
+-- How does the ranking of the top 5 brands by receipts scanned for the recent month compare to the ranking for the previous month?
+SELECT recent_month_brand
+	,recent_month_ranking
+	,previous_month_brand
+	,previous_month_ranking
+FROM (
+	SELECT *
+	FROM (
+		SELECT b.name AS recent_month_brand
+			,COUNT(DISTINCT r.receipt_id) AS recent_month_receipt_count
+			,RANK() OVER (
+				ORDER BY COUNT(DISTINCT r.receipt_id) DESC
+				) AS recent_month_ranking
+			,ROW_NUMBER() OVER (
+				ORDER BY COUNT(DISTINCT r.receipt_id) DESC
+				) AS recent_month_row_no
+		FROM receiptitems ri
+		INNER JOIN receipts r ON r.receipt_id = ri.receipt_id
+		INNER JOIN brands b ON b.brandCode = ri.brandcode
+		WHERE r.dateScanned BETWEEN date_trunc('month', current_timestamp - interval '1 month')
+				AND date_trunc('month', current_timestamp)
+		GROUP BY b.brand_id
+			,b.name
+		)
+	WHERE recent_month_ranking <= 5
+	) recent_month
+FULL OUTER JOIN (
+	SELECT *
+	FROM (
+		SELECT b.name AS previous_month_brand
+			,COUNT(DISTINCT r.receipt_id) AS previous_month_receipt_count
+			,RANK() OVER (
+				ORDER BY COUNT(DISTINCT r.receipt_id) DESC
+				) AS previous_month_ranking
+			,ROW_NUMBER() OVER (
+				ORDER BY COUNT(DISTINCT r.receipt_id) DESC
+				) AS previous_month_row_no
+		FROM receiptitems ri
+		INNER JOIN receipts r ON r.receipt_id = ri.receipt_id
+		INNER JOIN brands b ON b.brandCode = ri.brandcode
+		WHERE r.dateScanned BETWEEN date_trunc('month', current_timestamp - interval '2 month')
+				AND date_trunc('month', current_timestamp - interval '1 month')
+		GROUP BY b.brand_id
+			,b.name
+		)
+	WHERE previous_month_ranking <= 5
+	) previous_month ON recent_month.recent_month_row_no = previous_month.previous_month_row_no
+
+-- When considering average spend from receipts with 'rewardsReceiptStatus’ of ‘Accepted’ or ‘Rejected’, which is greater?
+SELECT rewardsReceiptStatus
+	,AVG(totalSpent) average_spend
+FROM receipts
+WHERE rewardsReceiptStatus IN (
+		'ACCEPTED'
+		,'REJECTED'
+		)
+GROUP BY rewardsReceiptStatus
+ORDER BY AVG(totalSpent) DESC LIMIT 1;
+
+--When considering total number of items purchased from receipts with 'rewardsReceiptStatus’ of ‘Accepted’ or ‘Rejected’, which is greater?
+SELECT rewardsReceiptStatus
+	,SUM(purchasedItemCount) items_purchased
+FROM receipts
+WHERE rewardsReceiptStatus IN (
+		'ACCEPTED'
+		,'REJECTED'
+		)
+GROUP BY rewardsReceiptStatus
+ORDER BY SUM(purchasedItemCount) DESC LIMIT 1;
+
+--Which brand has the most spend among users who were created within the past 6 months?
+SELECT b.name brand_name
+	,SUM(ri.finalPrice) total_spend
+FROM receipts r
+INNER JOIN users u ON r.user_id = u.user_id
+INNER JOIN receiptitems ri ON r.receipt_id = ri.receipt_id
+INNER JOIN brands b ON b.brandCode = ri.brandcode
+WHERE u.createdDate >= current_timestamp - interval '6 month'
+GROUP BY b.brand_id
+	,b.name
+ORDER BY SUM(ri.finalPrice) DESC LIMIT 1;
+
+--Which brand has the most transactions among users who were created within the past 6 months?
+SELECT b.name brand_name
+	,COUNT(ri.partnerItemId) num_transations
+FROM receipts r
+INNER JOIN users u ON r.user_id = u.user_id
+INNER JOIN receiptitems ri ON r.receipt_id = ri.receipt_id
+INNER JOIN brands b ON b.brandCode = ri.brandcode
+WHERE u.createdDate >= current_timestamp - interval '6 month'
+GROUP BY b.brand_id
+	,b.name
+ORDER BY COUNT(ri.partnerItemId) DESC LIMIT 1;
