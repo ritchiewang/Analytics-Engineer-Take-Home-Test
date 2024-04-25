@@ -1,5 +1,7 @@
 # Analytics Engineer Take Home Test 
 
+https://fetch-hiring.s3.amazonaws.com/analytics-engineer/ineeddata-data-modeling/data-modeling.html
+
 First: Review Existing Unstructured Data and Diagram a New Structured Relational Data Model
 
 - Please see "1 - relational diagram.png"
